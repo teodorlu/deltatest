@@ -53,8 +53,8 @@
         reloaded (try (clj-reload/reload {:throw false})
                       (catch Throwable e {:exception e}))]
     (if-let [e (:exception reloaded)]
-      {:error (str "Reload failed at " (:failed reloaded) ": " (ex-message e)
-                   (some->> (ex-cause e) ex-message (str "\n")))}
+      {:error (str "Reload failed" (some->> (:failed reloaded) (str " at ")) ": "
+                   (ex-message e) (some->> (ex-cause e) ex-message (str "\n")))}
       (let [t-reload (ms-since t0)
             t1 (System/nanoTime)
             after (reload-state)

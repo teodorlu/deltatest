@@ -11,6 +11,9 @@
 
 (def green-ref "refs/test-latest-changes/green")
 
+(defn- short-hash [s]
+  (subs (format "%08x" (hash s)) 0 6))
+
 ;; git
 
 (defn- git [dir & args]
@@ -38,8 +41,7 @@
   (let [common (str (fs/canonicalize (fs/path repo (git repo "rev-parse" "--git-common-dir"))))
         state (or (System/getenv "XDG_STATE_HOME")
                   (str (fs/path (fs/home) ".local" "state")))
-        key (str (fs/file-name (fs/parent common)) "-"
-                 (subs (format "%08x" (hash common)) 0 6))]
+        key (str (fs/file-name (fs/parent common)) "-" (short-hash common))]
     (str (fs/path state "test-latest-changes" key "worktree"))))
 
 (defn- ensure-worktree [repo worktree sha]
@@ -84,8 +86,11 @@
 
 ;; JVM
 
-(defn- process-name [worktree]
-  (str "tlc-" (fs/file-name (fs/parent worktree)) "-" (fs/file-name worktree)))
+(defn- process-name
+  "bgproc names are global and at most 64 characters."
+  [worktree]
+  (let [folder (str (fs/file-name worktree))]
+    (str "tlc-" (subs folder 0 (min 40 (count folder))) "-" (short-hash (str worktree)))))
 
 (defn- ensure-jvm
   "Returns the port of a JVM that answers, starting one under bgproc if none
@@ -93,7 +98,7 @@
   [worktree jvm-cmd]
   (or (some-> (port worktree) (#(when (answers? %) %)))
       (do (fs/delete-if-exists (fs/file worktree ".nrepl-port"))
-          (p/shell {:dir (str worktree) :out :string}
+          (p/shell {:dir (str worktree) :out :string :err :string}
                    "bgproc" "start" "-f" "-n" (process-name worktree) "-w" "300"
                    "--" "sh" "-c" jvm-cmd)
           (loop [tries 600]
