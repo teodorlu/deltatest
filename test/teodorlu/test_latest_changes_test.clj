@@ -29,7 +29,8 @@
                [#{toy.d-test} true]
                [#{toy.a-test toy.b-test toy.d-test} false]
                [#{toy.a-test toy.b-test toy.d-test} false]
-               [#{toy.a-test toy.b-test toy.d-test} true]]
+               [#{toy.a-test toy.b-test toy.d-test} true]
+               [#{toy.blå-test} true]]
              [(step nil nil)
               (step nil nil)
               (step "src/toy/a.clj" (toy/source "toy.a" "toy.b" "(+ 0 (toy.b/value))"))
@@ -37,7 +38,8 @@
               (step "test/toy/d_test.clj" (toy/test-source "toy.d-test" "toy.a" 1))
               (step "src/toy/b.clj" (toy/source "toy.b" "toy.c" 2))
               (step "README" "unrelated")
-              (step "src/toy/b.clj" (toy/source "toy.b" "toy.c" 1))]))
+              (step "src/toy/b.clj" (toy/source "toy.b" "toy.c" 1))
+              (step "test/toy/blå_test.clj" (toy/test-source "toy.blå-test" "toy.c" 1))]))
       (finally
         (p/shell {:continue true :out :string :err :string}
                  "bgproc" "stop" "-n" (#'tlc/process-name worktree))

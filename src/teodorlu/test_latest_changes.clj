@@ -33,8 +33,9 @@
   `from`."
   [repo from to]
   (if (and from (git-ok? repo "merge-base" "--is-ancestor" from to))
-    (let [out (git repo "diff" "--name-only" "--no-renames" from to)]
-      (if (str/blank? out) [] (str/split-lines out)))
+    ;; -z, or git quotes non-ASCII paths: "bl\303\245_test.clj"
+    (let [out (git repo "diff" "-z" "--name-only" "--no-renames" from to)]
+      (if (str/blank? out) [] (str/split out #"\u0000")))
     :all))
 
 (defn- default-worktree [repo]
@@ -110,9 +111,12 @@
 (def ^:private agent-source
   (delay (slurp (io/resource "teodorlu/test_latest_changes/agent.clj"))))
 
-(defn- ensure-agent [port]
+(defn- ensure-agent
+  "Loads the agent with a file name, so its stack frames look like any other
+  (a test that validates stack traces fails on a frame without a file)."
+  [port]
   (let [h (hash @agent-source)
-        code (format "(if (= %d (some-> (resolve 'teodorlu.test-latest-changes.agent/source-hash) deref)) :cached (do (load-string %s) (intern 'teodorlu.test-latest-changes.agent 'source-hash %d) :loaded))"
+        code (format "(if (= %d (some-> (resolve 'teodorlu.test-latest-changes.agent/source-hash) deref)) :cached (do (clojure.lang.Compiler/load (java.io.StringReader. %s) \"teodorlu/test_latest_changes/agent.clj\" \"agent.clj\") (intern 'teodorlu.test-latest-changes.agent 'source-hash %d) :loaded))"
                      h (pr-str @agent-source) h)
         {:keys [ex err value]} (nrepl-eval port code)]
     (when ex (throw (ex-info (str "Could not load agent: " err) {})))

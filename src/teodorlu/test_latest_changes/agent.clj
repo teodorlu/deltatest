@@ -73,5 +73,6 @@
                       (apply t/run-tests (sort selected))
                       {:test 0 :pass 0 :fail 0 :error 0})]
         {:selected (vec (sort selected))
+         :test-namespaces (count tests)
          :summary (select-keys summary [:test :pass :fail :error])
          :ms {:reload t-reload :select t-select :run (ms-since t2)}}))))
