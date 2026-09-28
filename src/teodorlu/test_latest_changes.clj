@@ -90,7 +90,7 @@
   "bgproc names are global and at most 64 characters."
   [worktree]
   (let [folder (str (fs/file-name worktree))]
-    (str "tlc-" (subs folder 0 (min 40 (count folder))) "-" (short-hash (str worktree)))))
+    (str "tlc-" (subs folder 0 (min 40 (count folder))) "-" (short-hash (str (fs/absolutize worktree))))))
 
 (defn- ensure-jvm
   "Returns the port of a JVM that answers, starting one under bgproc if none
