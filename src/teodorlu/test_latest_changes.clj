@@ -91,7 +91,7 @@
   "bgproc names are global and at most 64 characters."
   [worktree]
   (let [folder (str (fs/file-name worktree))]
-    (str "tlc-" (subs folder 0 (min 40 (count folder))) "-" (short-hash (str (fs/absolutize worktree))))))
+    (str "tlc-" (subs folder 0 (min 40 (count folder))) "-" (short-hash (str (fs/normalize (fs/absolutize worktree)))))))
 
 (defn- ensure-jvm
   "Returns the port of a JVM that answers, starting one under bgproc if none
@@ -134,7 +134,7 @@
     :or {repo "." rev "main" test-paths ["test"]}}]
   (let [t0 (System/nanoTime)
         repo (str (fs/absolutize repo))
-        worktree (str (fs/absolutize (or worktree (default-worktree repo))))
+        worktree (str (fs/normalize (fs/absolutize (or worktree (default-worktree repo)))))
         sha (git repo "rev-parse" "--verify" (str rev "^{commit}"))
         from (green repo)
         changed (changed-files repo from sha)
