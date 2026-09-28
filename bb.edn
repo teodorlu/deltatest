@@ -1,0 +1,8 @@
+{:deps {io.github.teodorlu/test-latest-changes {:local/root "."}}
+
+ :tasks
+ {test (shell "clojure -M:dev -m kaocha.runner")
+
+  test-latest-changes
+  {:requires ([teodorlu.test-latest-changes])
+   :task (apply teodorlu.test-latest-changes/main *command-line-args*)}}}
