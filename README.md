@@ -62,6 +62,8 @@ Exit status is 0 when everything selected passed.
   defined where the test does not require, data files.
 - Drift in the JVM beyond what clj-reload unloads.
 - Two runs at once against the same worktree.
+- A file that does not parse is red, but clj-reload 1.0.0 reports it as
+  `Cannot throw exception because "exception" is null`, not as the syntax error.
 
 ## Development
 
