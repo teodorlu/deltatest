@@ -181,10 +181,12 @@
     (when-let [e (:error result)] (println e))
     (when-let [files (seq (not-watched (:changed result)))]
       (println "Changed, not followed:" (str/join " " files)))
-    (println (str (subs (:sha result) 0 8)
-                  " since " (some-> (:from result) (subs 0 8))
-                  ": " (count (:selected result)) " namespaces "
-                  (pr-str (:summary result)) " "
-                  (pr-str (:ms result))))
-    (when-not (:green? result)
-      (throw (ex-info "Not green" {:babashka/exit 1})))))
+    (let [{:keys [sha from selected test-namespaces summary ms green?]} result
+          short #(subs % 0 8)]
+      (println (str (if green? "GREEN " "RED ") (short sha)
+                    (if from (str " since green " (short from)) ", nothing green before")
+                    ": ran " (count selected) " of " test-namespaces " test namespaces, "
+                    (:test summary 0) " tests, " (:fail summary 0) " failures, "
+                    (:error summary 0) " errors, in " (:total ms) " ms"))
+      (when-not green?
+        (throw (ex-info "Not green" {:babashka/exit 1}))))))
