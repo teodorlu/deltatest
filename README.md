@@ -14,6 +14,12 @@ behaviour, as far as `ns` forms can tell.
 
 ## Usage
 
+Needs [bgproc](https://github.com/ascorbic/bgproc) on the `PATH`:
+
+```
+npm install -g bgproc
+```
+
 ```clojure
 ;; bb.edn
 {:deps {io.github.teodorlu/test-latest-changes {:local/root "../test-latest-changes"}}
