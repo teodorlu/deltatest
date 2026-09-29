@@ -44,3 +44,22 @@
         (p/shell {:continue true :out :string :err :string}
                  "bgproc" "stop" "-n" (#'tlc/process-name worktree))
         (fs/delete-tree dir)))))
+
+(deftest working-tree
+  (let [dir (tmp-dir)
+        repo (toy/create! (str (fs/path dir "toy")))
+        worktree (str (fs/path dir "toy-latest"))
+        selected (fn [rev]
+                   (set (:selected (tlc/run-changes {:repo repo :worktree worktree
+                                                     :jvm-cmd toy/jvm-cmd :rev rev}))))]
+    (try
+      (selected "HEAD")
+      (toy/write! repo "test/toy/d_test.clj" (toy/test-source "toy.d-test" "toy.a" 1))
+      (is (= '[#{toy.d-test} "?? test/toy/d_test.clj\n" #{}]
+             [(selected (#'tlc/working-tree-commit repo))
+              (:out (p/shell {:dir repo :out :string} "git" "status" "--porcelain"))
+              (do (toy/commit! repo "d") (selected "HEAD"))]))
+      (finally
+        (p/shell {:continue true :out :string :err :string}
+                 "bgproc" "stop" "-n" (#'tlc/process-name worktree))
+        (fs/delete-tree dir)))))

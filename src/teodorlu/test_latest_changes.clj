@@ -29,14 +29,31 @@
     (git repo "rev-parse" green-ref)))
 
 (defn- changed-files
-  "Paths changed between `from` and `to`, or :all when there is no usable
-  `from`."
+  "Paths that differ between the trees of `from` and `to`, or :all when there
+  is no `from`. Only the trees matter: a snapshot of the working tree is never
+  an ancestor of the commit made from it."
   [repo from to]
-  (if (and from (git-ok? repo "merge-base" "--is-ancestor" from to))
+  (if from
     ;; -z, or git quotes non-ASCII paths: "bl\303\245_test.clj"
     (let [out (git repo "diff" "-z" "--name-only" "--no-renames" from to)]
       (if (str/blank? out) [] (str/split out #"\u0000")))
     :all))
+
+(defn- working-tree-commit
+  "A commit of the working tree of `repo`: tracked files as they are on disk,
+  and untracked files that are not ignored. Built in a copy of the index, so
+  the repository's own index, branches and working tree are left alone."
+  [repo]
+  (let [index (str (fs/absolutize (fs/path repo (git repo "rev-parse" "--git-path" "test-latest-changes-index"))))
+        with-index {:dir (str repo) :out :string :err :string
+                    :extra-env {"GIT_INDEX_FILE" index}}]
+    (try
+      (fs/copy (fs/path repo (git repo "rev-parse" "--git-path" "index")) index
+               {:replace-existing true})
+      (p/shell with-index "git" "add" "-A")
+      (let [tree (str/trim (:out (p/shell with-index "git" "write-tree")))]
+        (git repo "commit-tree" "-p" "HEAD" "-m" "test-latest-changes: working tree" tree))
+      (finally (fs/delete-if-exists index)))))
 
 (defn- default-worktree [repo]
   (let [common (str (fs/canonicalize (fs/path repo (git repo "rev-parse" "--git-common-dir"))))
@@ -131,7 +148,7 @@
   "Move the worktree to `rev`, run the affected tests there, and move the
   green ref when they pass."
   [{:keys [repo rev worktree jvm-cmd test-paths]
-    :or {repo "." rev "main" test-paths ["test"]}}]
+    :or {repo "." rev "HEAD" test-paths ["test"]}}]
   (let [t0 (System/nanoTime)
         repo (str (fs/absolutize repo))
         worktree (str (fs/normalize (fs/absolutize (or worktree (default-worktree repo)))))
@@ -164,29 +181,30 @@
   (when (sequential? changed)
     (remove #(re-find #"\.cljc?$" %) changed)))
 
-(defn ^:export main
-  "Entrypoint from babashka tasks.
+(defn- report!
+  "Print `result`, and fail the babashka task unless it is green."
+  [result]
+  (some-> (:out result) print)
+  (when-let [e (:error result)] (println e))
+  (when-let [files (seq (not-watched (:changed result)))]
+    (println "Changed, not followed:" (str/join " " files)))
+  (let [{:keys [sha from selected test-namespaces summary ms green?]} result
+        short #(subs % 0 8)]
+    (println (str (if green? "GREEN " "RED ") (short sha)
+                  (if from (str " since green " (short from)) ", nothing green before")
+                  ": ran " (count selected) " of " test-namespaces " test namespaces, "
+                  (:test summary 0) " tests, " (:fail summary 0) " failures, "
+                  (:error summary 0) " errors, in " (:total ms) " ms"))
+    (when-not green?
+      (throw (ex-info "Not green" {:babashka/exit 1})))))
 
-    bb test-latest-changes --jvm-cmd 'clojure -M:test -m nrepl.cmdline'"
-  [& args]
-  (let [opts (loop [[k v & more] args, acc {}]
-               (if k
-                 (recur more (assoc acc (keyword (subs k 2)) v))
-                 acc))
-        _ (when-not (:jvm-cmd opts)
-            (throw (ex-info "--jvm-cmd is required" {:babashka/exit 2})))
-        result (run-changes (cond-> opts
-                              (:test-paths opts) (update :test-paths #(str/split % #","))))]
-    (some-> (:out result) print)
-    (when-let [e (:error result)] (println e))
-    (when-let [files (seq (not-watched (:changed result)))]
-      (println "Changed, not followed:" (str/join " " files)))
-    (let [{:keys [sha from selected test-namespaces summary ms green?]} result
-          short #(subs % 0 8)]
-      (println (str (if green? "GREEN " "RED ") (short sha)
-                    (if from (str " since green " (short from)) ", nothing green before")
-                    ": ran " (count selected) " of " test-namespaces " test namespaces, "
-                    (:test summary 0) " tests, " (:fail summary 0) " failures, "
-                    (:error summary 0) " errors, in " (:total ms) " ms"))
-      (when-not green?
-        (throw (ex-info "Not green" {:babashka/exit 1}))))))
+(defn test-head
+  "Test HEAD. Called from a babashka task, with `opts` as for `run-changes`."
+  [opts]
+  (report! (run-changes opts)))
+
+(defn test-working-tree
+  "Test the working tree, uncommitted changes included. Called from a babashka
+  task, with `opts` as for `run-changes`."
+  [opts]
+  (report! (run-changes (assoc opts :rev (working-tree-commit (:repo opts "."))))))
