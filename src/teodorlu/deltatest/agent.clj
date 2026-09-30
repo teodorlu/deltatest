@@ -1,11 +1,11 @@
 (ns teodorlu.deltatest.agent
   "Runs inside the JVM under test. Sent there as source over nREPL, so the
-  project under test does not depend on deltatest. Needs clj-reload
-  on that JVM's classpath, and nothing else."
+  project under test does not depend on deltatest. Needs clj-reload and
+  kaocha on that JVM's classpath, and nothing else."
   (:require [clj-reload.core :as clj-reload]
             [clojure.java.io :as io]
             [clojure.set :as set]
-            [clojure.test :as t]))
+            [kaocha.repl :as kaocha]))
 
 (defn dependents
   "`nses`, and every namespace that requires one of them, transitively.
@@ -40,39 +40,43 @@
                ns namespaces]
            ns))))
 
-(defn- ms-since [t0]
-  (quot (- (System/nanoTime) t0) 1000000))
-
-(defn run
-  "Reload what changed on disk, then run the test namespaces that depend on
-  `changed`. `changed` is a seq of file paths relative to the working
-  directory, or :all."
-  [{:keys [changed test-paths]}]
-  (let [t0 (System/nanoTime)
-        before (reload-state)
-        reloaded (try (clj-reload/reload {:throw false})
+(defn reload
+  "Reload what changed on disk. Returns the namespaces the files in `changed`
+  held, before or after the reload, as :touched. `changed` is a seq of file
+  paths relative to the working directory, or :all."
+  [changed]
+  (let [before (reload-state)
+        reloaded (try (clj-reload/reload {:throw false :log-fn nil})
                       (catch Throwable e {:exception e}))]
     (if-let [e (:exception reloaded)]
       {:error (str "Reload failed" (some->> (:failed reloaded) (str " at ")) ": "
                    (ex-message e) (some->> (ex-cause e) ex-message (str "\n")))}
-      (let [t-reload (ms-since t0)
-            t1 (System/nanoTime)
-            after (reload-state)
-            tests (test-namespaces after test-paths)
-            _ (run! #(when-not (find-ns %) (require %)) tests)
-            selected (if (= :all changed)
-                       tests
-                       (set/intersection
-                        tests
-                        (dependents (update-vals (:namespaces after) :requires)
-                                    (into (namespaces-in before changed)
-                                          (namespaces-in after changed)))))
-            t-select (ms-since t1)
-            t2 (System/nanoTime)
-            summary (if (seq selected)
-                      (apply t/run-tests (sort selected))
-                      {:test 0 :pass 0 :fail 0 :error 0})]
-        {:selected (vec (sort selected))
-         :test-namespaces (count tests)
-         :summary (select-keys summary [:test :pass :fail :error])
-         :ms {:reload t-reload :select t-select :run (ms-since t2)}}))))
+      {:touched (if (= :all changed)
+                  :all
+                  (into (namespaces-in before changed)
+                        (namespaces-in (reload-state) changed)))})))
+
+(defn run
+  "Run, with kaocha, the test namespaces that depend on `touched`, or all of
+  them when `touched` is :all."
+  [{:keys [touched test-paths]}]
+  (let [state (reload-state)
+        tests (test-namespaces state test-paths)
+        _ (run! #(when-not (find-ns %) (require %)) tests)
+        selected (if (= :all touched)
+                   tests
+                   (set/intersection
+                    tests
+                    (dependents (update-vals (:namespaces state) :requires) touched)))
+        result (when (seq selected)
+                 (apply kaocha/run (sort selected)))]
+    (merge {:selected (vec (sort selected))
+            :test-namespaces (count tests)}
+           (cond
+             (empty? selected) {:summary {:test 0 :pass 0 :fail 0 :error 0}}
+             ;; kaocha returns 0, not a result, when it ran nothing
+             (map? result) {:summary {:test (:kaocha.result/count result)
+                                      :pass (:kaocha.result/pass result)
+                                      :fail (:kaocha.result/fail result)
+                                      :error (:kaocha.result/error result)}}
+             :else {:error "Kaocha ran none of the selected test namespaces."}))))

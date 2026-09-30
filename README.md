@@ -40,8 +40,8 @@ files as they are on disk, and untracked files that are not ignored.
 Keys, all but `:jvm-cmd` optional:
 
 - `:jvm-cmd` starts an nREPL server in the worktree. It must put
-  clj-reload and the test paths on the classpath, and write `.nrepl-port`,
-  which `nrepl.cmdline` does when no port is given.
+  clj-reload, kaocha and the test paths on the classpath, and write
+  `.nrepl-port`, which `nrepl.cmdline` does when no port is given.
 - `:worktree` is where the worktree lives. Default
   `$XDG_STATE_HOME/deltatest/<repo>-<hash>/worktree`, with
   `~/.local/state` when `XDG_STATE_HOME` is unset.
@@ -49,6 +49,9 @@ Keys, all but `:jvm-cmd` optional:
 - `:test-paths` is a vector, default `["test"]`.
 
 The task fails unless everything selected passed.
+
+The selected tests run with kaocha, configured by the project's `tests.edn`,
+so they print as kaocha would, reporter included, while they run.
 
 ## How it works
 
@@ -67,7 +70,7 @@ The task fails unless everything selected passed.
 - **The JVM is kept up by bgproc**, and is up when it answers an nREPL eval.
 - **The half that runs in the JVM is sent as source**
   (`src/teodorlu/deltatest/agent.clj`), so the project under test
-  does not depend on this library. It uses `clojure.test`.
+  does not depend on this library. It runs tests with `kaocha.repl/run`.
 
 ## Not handled
 
