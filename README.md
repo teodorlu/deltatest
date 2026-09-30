@@ -14,12 +14,6 @@ behaviour, as far as `ns` forms can tell.
 
 ## Usage
 
-Needs [bgproc](https://github.com/ascorbic/bgproc) on the `PATH`:
-
-```
-npm install -g bgproc
-```
-
 There is no command line. Call one of two functions from a babashka task:
 
 ```clojure
@@ -67,7 +61,10 @@ so they print as kaocha would, reporter included, while they run.
   files are left alone.
 - **The dependency graph is clj-reload's**, read from the JVM under test after
   reloading. No clj-kondo, no second analysis.
-- **The JVM is kept up by bgproc**, and is up when it answers an nREPL eval.
+- **The JVM is started by `sh` with job control on**, which gives it a
+  process group of its own, so Ctrl-C and closing the terminal leave it
+  running. It is up when it answers an nREPL eval. Its pid and output are in
+  the worktree's git dir, `deltatest-jvm.edn` and `deltatest-jvm.log`.
 - **The half that runs in the JVM is sent as source**
   (`src/teodorlu/deltatest/agent.clj`), so the project under test
   does not depend on this library. It runs tests with `kaocha.repl/run`.
@@ -86,6 +83,6 @@ so they print as kaocha would, reporter included, while they run.
 ## Development
 
 ```
-bb test          # kaocha on the JVM; starts toy JVMs under bgproc
+bb test          # kaocha on the JVM; starts toy JVMs
 DELTATEST_TMP=../tmp bb test   # keep toy repositories somewhere of your choosing
 ```

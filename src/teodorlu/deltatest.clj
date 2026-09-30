@@ -7,7 +7,8 @@
             [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.string :as str])
-  (:import [java.net Socket]))
+  (:import [java.lang ProcessHandle]
+           [java.net Socket]))
 
 (def green-ref "refs/deltatest/green")
 
@@ -144,33 +145,58 @@
 
 ;; JVM
 
-(defn- process-name
-  "bgproc names are global and at most 64 characters."
+(defn- jvm-file
+  "The JVM's pid record (`edn`) or its output (`log`), in the worktree's own
+  git dir, where `git status` does not see them."
+  [worktree ext]
+  (str (fs/path worktree (git worktree "rev-parse" "--git-path" (str "deltatest-jvm." ext)))))
+
+(defn- stop-jvm
+  "Stops the JVM last started in `worktree`, and what it started. A pid can be
+  reused, so it counts only with the start instant recorded beside it."
   [worktree]
-  (let [folder (str (fs/file-name worktree))]
-    (str "deltatest-" (subs folder 0 (min 40 (count folder))) "-" (short-hash (str (fs/normalize (fs/absolutize worktree)))))))
+  (let [f (jvm-file worktree "edn")
+        [pid started] (when (fs/exists? f) (edn/read-string (slurp f)))
+        h (some-> pid ProcessHandle/of (.orElse nil))]
+    (when (and h started (= started (some-> h .info .startInstant (.orElse nil) str)))
+      (let [hs (cons h (iterator-seq (.iterator (.descendants h))))]
+        (run! #(.destroyForcibly %) hs)
+        (run! #(.join (.onExit %)) hs)))))
+
+(defn- start-jvm
+  "Starts `jvm-cmd` in `worktree` as a background job of `sh` with job control
+  on, which gives it a process group of its own: neither Ctrl-C nor closing the
+  terminal reaches it. Returns its ProcessHandle, or nil if it is already gone."
+  [worktree jvm-cmd]
+  (let [pid (parse-long (str/trim (:out (p/shell {:dir (str worktree) :out :string}
+                                                "sh" "-c" "set -m; sh -c \"$1\" </dev/null >\"$2\" 2>&1 & echo $!"
+                                                "sh" jvm-cmd (jvm-file worktree "log")))))
+        h (.orElse (ProcessHandle/of pid) nil)]
+    (spit (jvm-file worktree "edn")
+          (pr-str [pid (some-> h .info .startInstant (.orElse nil) str)]))
+    h))
 
 (defn- seconds-since [t0]
   (format "%.1f s" (/ (- (System/nanoTime) t0) 1e9)))
 
 (defn- ensure-jvm
-  "Returns the port of a JVM that answers, starting one under bgproc if none
-  does."
+  "Returns the port of a JVM that answers, starting one if none does."
   [worktree jvm-cmd emit]
-  (let [bgproc-name (process-name worktree)]
-    (if-let [p (some-> (port worktree) (#(when (answers? %) %)))]
-      (do (emit :out (str "Warm JVM " bgproc-name " on port " p ".\n"))
-          p)
-      (let [t0 (System/nanoTime)]
-        (emit :out (str "Starting JVM " bgproc-name "… "))
-        (fs/delete-if-exists (fs/file worktree ".nrepl-port"))
-        (p/shell {:dir (str worktree) :out :string :err :string}
-                 "bgproc" "start" "-f" "-n" bgproc-name "-w" "300"
-                 "--" "sh" "-c" jvm-cmd)
-        (loop [tries 600]
+  (if-let [p (some-> (port worktree) (#(when (answers? %) %)))]
+    (do (emit :out (str "Warm JVM on port " p ".\n"))
+        p)
+    (let [t0 (System/nanoTime)]
+      (emit :out "Starting JVM… ")
+      (stop-jvm worktree)
+      (fs/delete-if-exists (fs/file worktree ".nrepl-port"))
+      (let [jvm (start-jvm worktree jvm-cmd)]
+        (loop [tries 3000]
           (let [p (port worktree)]
             (cond (and p (answers? p)) (do (emit :out (str "up in " (seconds-since t0) ".\n"))
                                            p)
+                  (not (some-> jvm .isAlive)) (throw (ex-info (str "JVM exited before answering on nREPL:\n"
+                                                                   (slurp (jvm-file worktree "log")))
+                                                              {:worktree worktree}))
                   (zero? tries) (throw (ex-info "JVM did not answer on nREPL" {:worktree worktree}))
                   :else (do (Thread/sleep 100) (recur (dec tries))))))))))
 
