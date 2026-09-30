@@ -1,5 +1,5 @@
-(ns teodorlu.test-latest-changes.toy
-  "A small git repository to run test-latest-changes against: toy.a requires
+(ns teodorlu.deltatest.toy
+  "A small git repository to run deltatest against: toy.a requires
   toy.b requires toy.c, and each has a test namespace."
   (:require [babashka.fs :as fs]
             [babashka.process :as p]))

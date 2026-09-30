@@ -1,12 +1,12 @@
-(ns teodorlu.test-latest-changes-test
+(ns teodorlu.deltatest-test
   (:require [babashka.fs :as fs]
             [babashka.process :as p]
             [clojure.test :refer [deftest is]]
-            [teodorlu.test-latest-changes :as tlc]
-            [teodorlu.test-latest-changes.toy :as toy]))
+            [teodorlu.deltatest :as deltatest]
+            [teodorlu.deltatest.toy :as toy]))
 
 (defn- tmp-dir []
-  (str (if-let [base (System/getenv "TLC_TMP")]
+  (str (if-let [base (System/getenv "DELTATEST_TMP")]
          (fs/create-temp-dir {:dir (fs/create-dirs base)})
          (fs/create-temp-dir))))
 
@@ -19,7 +19,7 @@
                  (toy/write! repo path content)
                  (toy/commit! repo path))
                (let [{:keys [selected green?]}
-                     (tlc/run-changes {:repo repo :worktree worktree :jvm-cmd toy/jvm-cmd})]
+                     (deltatest/run-changes {:repo repo :worktree worktree :jvm-cmd toy/jvm-cmd})]
                  [(set selected) green?]))]
     (try
       (is (= '[[#{toy.a-test toy.b-test toy.c-test} true]
@@ -42,7 +42,7 @@
               (step "test/toy/blå_test.clj" (toy/test-source "toy.blå-test" "toy.c" 1))]))
       (finally
         (p/shell {:continue true :out :string :err :string}
-                 "bgproc" "stop" "-n" (#'tlc/process-name worktree))
+                 "bgproc" "stop" "-n" (#'deltatest/process-name worktree))
         (fs/delete-tree dir)))))
 
 (deftest working-tree
@@ -50,16 +50,16 @@
         repo (toy/create! (str (fs/path dir "toy")))
         worktree (str (fs/path dir "toy-latest"))
         selected (fn [rev]
-                   (set (:selected (tlc/run-changes {:repo repo :worktree worktree
-                                                     :jvm-cmd toy/jvm-cmd :rev rev}))))]
+                   (set (:selected (deltatest/run-changes {:repo repo :worktree worktree
+                                                           :jvm-cmd toy/jvm-cmd :rev rev}))))]
     (try
       (selected "HEAD")
       (toy/write! repo "test/toy/d_test.clj" (toy/test-source "toy.d-test" "toy.a" 1))
       (is (= '[#{toy.d-test} "?? test/toy/d_test.clj\n" #{}]
-             [(selected (#'tlc/working-tree-commit repo))
+             [(selected (#'deltatest/working-tree-commit repo))
               (:out (p/shell {:dir repo :out :string} "git" "status" "--porcelain"))
               (do (toy/commit! repo "d") (selected "HEAD"))]))
       (finally
         (p/shell {:continue true :out :string :err :string}
-                 "bgproc" "stop" "-n" (#'tlc/process-name worktree))
+                 "bgproc" "stop" "-n" (#'deltatest/process-name worktree))
         (fs/delete-tree dir)))))

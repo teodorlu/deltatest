@@ -1,4 +1,4 @@
-(ns teodorlu.test-latest-changes
+(ns teodorlu.deltatest
   "Run the tests affected by what changed since the last green commit, in a
   warm JVM, in a worktree that follows a revision."
   (:require [babashka.fs :as fs]
@@ -9,7 +9,7 @@
             [clojure.string :as str])
   (:import [java.net Socket]))
 
-(def green-ref "refs/test-latest-changes/green")
+(def green-ref "refs/deltatest/green")
 
 (defn- short-hash [s]
   (subs (format "%08x" (hash s)) 0 6))
@@ -44,7 +44,7 @@
   and untracked files that are not ignored. Built in a copy of the index, so
   the repository's own index, branches and working tree are left alone."
   [repo]
-  (let [index (str (fs/absolutize (fs/path repo (git repo "rev-parse" "--git-path" "test-latest-changes-index"))))
+  (let [index (str (fs/absolutize (fs/path repo (git repo "rev-parse" "--git-path" "deltatest-index"))))
         with-index {:dir (str repo) :out :string :err :string
                     :extra-env {"GIT_INDEX_FILE" index}}]
     (try
@@ -52,7 +52,7 @@
                {:replace-existing true})
       (p/shell with-index "git" "add" "-A")
       (let [tree (str/trim (:out (p/shell with-index "git" "write-tree")))]
-        (git repo "commit-tree" "-p" "HEAD" "-m" "test-latest-changes: working tree" tree))
+        (git repo "commit-tree" "-p" "HEAD" "-m" "deltatest: working tree" tree))
       (finally (fs/delete-if-exists index)))))
 
 (defn- default-worktree [repo]
@@ -60,7 +60,7 @@
         state (or (System/getenv "XDG_STATE_HOME")
                   (str (fs/path (fs/home) ".local" "state")))
         key (str (fs/file-name (fs/parent common)) "-" (short-hash common))]
-    (str (fs/path state "test-latest-changes" key "worktree"))))
+    (str (fs/path state "deltatest" key "worktree"))))
 
 (defn- ensure-worktree [repo worktree sha]
   (if (fs/exists? worktree)
@@ -81,7 +81,7 @@
   (with-open [socket (Socket. "localhost" (int port))]
     (let [in (java.io.PushbackInputStream. (.getInputStream socket))
           out (.getOutputStream socket)]
-      (bencode/write-bencode out {"op" "eval" "code" code "id" "tlc"})
+      (bencode/write-bencode out {"op" "eval" "code" code "id" "deltatest"})
       (loop [acc {}]
         (let [msg (update-vals (bencode/read-bencode in) ->str)
               acc (cond-> acc
@@ -108,7 +108,7 @@
   "bgproc names are global and at most 64 characters."
   [worktree]
   (let [folder (str (fs/file-name worktree))]
-    (str "tlc-" (subs folder 0 (min 40 (count folder))) "-" (short-hash (str (fs/normalize (fs/absolutize worktree)))))))
+    (str "deltatest-" (subs folder 0 (min 40 (count folder))) "-" (short-hash (str (fs/normalize (fs/absolutize worktree)))))))
 
 (defn- ensure-jvm
   "Returns the port of a JVM that answers, starting one under bgproc if none
@@ -126,14 +126,14 @@
                     :else (do (Thread/sleep 100) (recur (dec tries)))))))))
 
 (def ^:private agent-source
-  (delay (slurp (io/resource "teodorlu/test_latest_changes/agent.clj"))))
+  (delay (slurp (io/resource "teodorlu/deltatest/agent.clj"))))
 
 (defn- ensure-agent
   "Loads the agent with a file name, so its stack frames look like any other
   (a test that validates stack traces fails on a frame without a file)."
   [port]
   (let [h (hash @agent-source)
-        code (format "(if (= %d (some-> (resolve 'teodorlu.test-latest-changes.agent/source-hash) deref)) :cached (do (clojure.lang.Compiler/load (java.io.StringReader. %s) \"teodorlu/test_latest_changes/agent.clj\" \"agent.clj\") (intern 'teodorlu.test-latest-changes.agent 'source-hash %d) :loaded))"
+        code (format "(if (= %d (some-> (resolve 'teodorlu.deltatest.agent/source-hash) deref)) :cached (do (clojure.lang.Compiler/load (java.io.StringReader. %s) \"teodorlu/deltatest/agent.clj\" \"agent.clj\") (intern 'teodorlu.deltatest.agent 'source-hash %d) :loaded))"
                      h (pr-str @agent-source) h)
         {:keys [ex err value]} (nrepl-eval port code)]
     (when ex (throw (ex-info (str "Could not load agent: " err) {})))
@@ -163,7 +163,7 @@
         t-jvm (ms-since t1)
         t2 (System/nanoTime)
         {:keys [value out err ex]}
-        (nrepl-eval port (pr-str (list 'teodorlu.test-latest-changes.agent/run
+        (nrepl-eval port (pr-str (list 'teodorlu.deltatest.agent/run
                                        {:changed changed :test-paths test-paths})))
         t-eval (ms-since t2)
         result (if ex {:error (str "Eval failed: " err)} (edn/read-string value))
@@ -203,7 +203,7 @@
   [opts]
   (report! (run-changes opts)))
 
-(defn test-working-tree
+(defn test-tree
   "Test the working tree, uncommitted changes included. Called from a babashka
   task, with `opts` as for `run-changes`."
   [opts]

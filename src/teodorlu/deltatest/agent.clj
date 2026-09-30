@@ -1,6 +1,6 @@
-(ns teodorlu.test-latest-changes.agent
+(ns teodorlu.deltatest.agent
   "Runs inside the JVM under test. Sent there as source over nREPL, so the
-  project under test does not depend on test-latest-changes. Needs clj-reload
+  project under test does not depend on deltatest. Needs clj-reload
   on that JVM's classpath, and nothing else."
   (:require [clj-reload.core :as clj-reload]
             [clojure.java.io :as io]
