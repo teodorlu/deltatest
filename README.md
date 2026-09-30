@@ -12,6 +12,13 @@ worktree to HEAD, or to a commit of your working tree, reloads what changed,
 and runs the test namespaces that depend on a changed namespace, transitively. The rest cannot have changed
 behaviour, as far as `ns` forms can tell.
 
+## Requirements
+
+- Babashka 1.12.194 or later. deltatest runs there, and is written for
+  Clojure 1.12.
+- Clojure 1.11 or later in the project under test. The half that runs in its
+  JVM does not assume 1.12.
+
 ## Usage
 
 There is no command line. Call one of three functions from a babashka task:
