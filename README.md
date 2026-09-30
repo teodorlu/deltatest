@@ -14,7 +14,7 @@ behaviour, as far as `ns` forms can tell.
 
 ## Usage
 
-There is no command line. Call one of two functions from a babashka task:
+There is no command line. Call one of three functions from a babashka task:
 
 ```clojure
 ;; bb.edn
@@ -25,11 +25,16 @@ There is no command line. Call one of two functions from a babashka task:
    :task (deltatest/test-head {:jvm-cmd "clojure -Sdeps '{:deps {nrepl/nrepl {:mvn/version \"1.4.0\"}}}' -M:test -m nrepl.cmdline"})}
   test-tree
   {:requires ([teodorlu.deltatest :as deltatest])
-   :task (deltatest/test-tree {:jvm-cmd "clojure -Sdeps '{:deps {nrepl/nrepl {:mvn/version \"1.4.0\"}}}' -M:test -m nrepl.cmdline"})}}}
+   :task (deltatest/test-tree {:jvm-cmd "clojure -Sdeps '{:deps {nrepl/nrepl {:mvn/version \"1.4.0\"}}}' -M:test -m nrepl.cmdline"})}
+  stop-jvm
+  {:requires ([teodorlu.deltatest :as deltatest])
+   :task (deltatest/stop-jvm {})}}}
 ```
 
 `test-head` tests HEAD. `test-tree` tests the working tree: tracked
 files as they are on disk, and untracked files that are not ignored.
+`stop-jvm` stops the JVM they keep running; the next test run starts
+another. It reads only `:repo` and `:worktree`.
 
 Keys, all but `:jvm-cmd` optional:
 

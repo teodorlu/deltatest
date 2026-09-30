@@ -71,7 +71,7 @@
               (step "test/toy/blå_test.clj" (toy/test-source "toy.blå-test" "toy.c" 1))]))
       (is (str/includes? @out "in toy.b-test/value (b_test.clj:2)"))
       (finally
-        (#'deltatest/stop-jvm worktree)
+        (deltatest/stop-jvm {:worktree worktree})
         (fs/delete-tree dir)))))
 
 (deftest working-tree
@@ -90,5 +90,5 @@
               (:out (p/shell {:dir repo :out :string} "git" "status" "--porcelain"))
               (do (toy/commit! repo "d") (selected "HEAD"))]))
       (finally
-        (#'deltatest/stop-jvm worktree)
+        (deltatest/stop-jvm {:worktree worktree})
         (fs/delete-tree dir)))))

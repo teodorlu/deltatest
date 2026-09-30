@@ -151,12 +151,14 @@
   [worktree ext]
   (str (fs/path worktree (git worktree "rev-parse" "--git-path" (str "deltatest-jvm." ext)))))
 
-(defn- stop-jvm
-  "Stops the JVM last started in `worktree`, and what it started. A pid can be
-  reused, so it counts only with the start instant recorded beside it."
-  [worktree]
-  (let [f (jvm-file worktree "edn")
-        [pid started] (when (fs/exists? f) (edn/read-string (slurp f)))
+(defn stop-jvm
+  "Stop the JVM last started in the worktree, and what it started. Called from
+  a babashka task, with `opts` as for `run-changes`. A pid can be reused, so it
+  counts only with the start instant recorded beside it."
+  [{:keys [repo worktree] :or {repo "."}}]
+  (let [worktree (or worktree (default-worktree repo))
+        f (when (fs/exists? worktree) (jvm-file worktree "edn"))
+        [pid started] (when (and f (fs/exists? f)) (edn/read-string (slurp f)))
         h (some-> pid ProcessHandle/of (.orElse nil))]
     (when (and h started (= started (some-> h .info .startInstant (.orElse nil) str)))
       (let [hs (cons h (iterator-seq (.iterator (.descendants h))))]
@@ -187,7 +189,7 @@
         p)
     (let [t0 (System/nanoTime)]
       (emit :out "Starting JVM… ")
-      (stop-jvm worktree)
+      (stop-jvm {:worktree worktree})
       (fs/delete-if-exists (fs/file worktree ".nrepl-port"))
       (let [jvm (start-jvm worktree jvm-cmd)]
         (loop [tries 3000]
