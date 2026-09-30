@@ -7,8 +7,14 @@
             [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.string :as str])
-  (:import [java.lang ProcessHandle]
-           [java.net Socket]))
+  (:import [java.io PushbackInputStream]
+           [java.lang ProcessHandle ProcessHandle$Info]
+           [java.net Socket]
+           [java.util Optional]
+           [java.util.concurrent CompletableFuture]
+           [java.util.stream Stream]))
+
+;; (set! *warn-on-reflection* true)
 
 (def green-ref "refs/deltatest/green")
 
@@ -109,7 +115,7 @@
 ;; nREPL
 
 (defn- ->str [x]
-  (if (bytes? x) (String. ^bytes x "UTF-8") x))
+  (if (bytes? x) (String/new ^bytes x "UTF-8") x))
 
 (defn- nrepl-eval
   "Evaluate `code` over nREPL at `port`. Returns {:value :out :err :ex}, with
@@ -117,9 +123,9 @@
   arrives."
   ([port code] (nrepl-eval port code (fn [_ _])))
   ([port code emit]
-   (with-open [socket (Socket. "localhost" (int port))]
-     (let [in (java.io.PushbackInputStream. (.getInputStream socket))
-           out (.getOutputStream socket)]
+   (with-open [socket (Socket/new "localhost" (int port))]
+     (let [in (PushbackInputStream/new (Socket/.getInputStream socket))
+           out (Socket/.getOutputStream socket)]
        (bencode/write-bencode out {"op" "eval" "code" code "id" "deltatest"})
        (loop [acc {}]
          (let [msg (update-vals (bencode/read-bencode in) ->str)
@@ -159,11 +165,11 @@
   (let [worktree (or worktree (default-worktree repo))
         f (when (fs/exists? worktree) (jvm-file worktree "edn"))
         [pid started] (when (and f (fs/exists? f)) (edn/read-string (slurp f)))
-        h (some-> pid ProcessHandle/of (.orElse nil))]
-    (when (and h started (= started (some-> h .info .startInstant (.orElse nil) str)))
-      (let [hs (cons h (iterator-seq (.iterator (.descendants h))))]
-        (run! #(.destroyForcibly %) hs)
-        (run! #(.join (.onExit %)) hs)))))
+        h (some-> pid ProcessHandle/of (Optional/.orElse nil))]
+    (when (and h started (= started (some-> h ProcessHandle/.info ProcessHandle$Info/.startInstant (Optional/.orElse nil) str)))
+      (let [hs (cons h (iterator-seq (Stream/.iterator (ProcessHandle/.descendants h))))]
+        (run! ProcessHandle/.destroyForcibly hs)
+        (run! #(CompletableFuture/.join (ProcessHandle/.onExit %)) hs)))))
 
 (defn- start-jvm
   "Starts `jvm-cmd` in `worktree` as a background job of `sh` with job control
@@ -173,9 +179,9 @@
   (let [pid (parse-long (str/trim (:out (p/shell {:dir (str worktree) :out :string}
                                                 "sh" "-c" "set -m; sh -c \"$1\" </dev/null >\"$2\" 2>&1 & echo $!"
                                                 "sh" jvm-cmd (jvm-file worktree "log")))))
-        h (.orElse (ProcessHandle/of pid) nil)]
+        h (Optional/.orElse (ProcessHandle/of pid) nil)]
     (spit (jvm-file worktree "edn")
-          (pr-str [pid (some-> h .info .startInstant (.orElse nil) str)]))
+          (pr-str [pid (some-> h ProcessHandle/.info ProcessHandle$Info/.startInstant (Optional/.orElse nil) str)]))
     h))
 
 (defn- seconds-since [t0]
@@ -196,9 +202,9 @@
           (let [p (port worktree)]
             (cond (and p (answers? p)) (do (emit :out (str "up in " (seconds-since t0) ".\n"))
                                            p)
-                  (not (some-> jvm .isAlive)) (throw (ex-info (str "JVM exited before answering on nREPL:\n"
-                                                                   (slurp (jvm-file worktree "log")))
-                                                              {:worktree worktree}))
+                  (not (some-> jvm ProcessHandle/.isAlive)) (throw (ex-info (str "JVM exited before answering on nREPL:\n"
+                                                                                 (slurp (jvm-file worktree "log")))
+                                                                            {:worktree worktree}))
                   (zero? tries) (throw (ex-info "JVM did not answer on nREPL" {:worktree worktree}))
                   :else (do (Thread/sleep 100) (recur (dec tries))))))))))
 

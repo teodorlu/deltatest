@@ -1,7 +1,8 @@
 (ns teodorlu.deltatest.agent
   "Runs inside the JVM under test. Sent there as source over nREPL, so the
   project under test does not depend on deltatest. Needs clj-reload and
-  kaocha on that JVM's classpath, and nothing else."
+  kaocha on that JVM's classpath, and nothing else. Written for Clojure 1.11,
+  so no 1.12 interop."
   (:require [clj-reload.core :as clj-reload]
             [clojure.java.io :as io]
             [clojure.set :as set]
