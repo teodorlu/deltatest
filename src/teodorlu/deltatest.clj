@@ -98,6 +98,15 @@
     (when (git-ok? repo "merge-base" "--is-ancestor" (on green) (on tested))
       (parse-long (git repo "rev-list" "--count" (str (on green) ".." (on tested)))))))
 
+(defn forget-green
+  "Delete the green ref, so the next run tests everything. The JVM is left
+  running. Called from a babashka task, with `opts` as for `run-changes`."
+  [{:keys [repo] :or {repo "."}}]
+  (if-let [sha (green repo)]
+    (do (git repo "update-ref" "-d" green-ref)
+        (println (str "Forgot green ref at " (commit-name (commit-info repo sha)) ".")))
+    (println "No green ref.")))
+
 (defn- default-worktree [repo]
   (let [common (str (fs/canonicalize (fs/path repo (git repo "rev-parse" "--git-common-dir"))))
         state (or (System/getenv "XDG_STATE_HOME")

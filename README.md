@@ -21,7 +21,7 @@ behaviour, as far as `ns` forms can tell.
 
 ## Usage
 
-There is no command line. Call one of three functions from a babashka task:
+There is no command line. Call one of four functions from a babashka task:
 
 ```clojure
 ;; bb.edn
@@ -35,13 +35,20 @@ There is no command line. Call one of three functions from a babashka task:
    :task (deltatest/test-tree {:jvm-cmd "clojure -Sdeps '{:deps {nrepl/nrepl {:mvn/version \"1.4.0\"}}}' -M:test -m nrepl.cmdline"})}
   stop-jvm
   {:requires ([teodorlu.deltatest :as deltatest])
-   :task (deltatest/stop-jvm {})}}}
+   :task (deltatest/stop-jvm {})}
+  forget-green
+  {:requires ([teodorlu.deltatest :as deltatest])
+   :task (deltatest/forget-green {})}}}
 ```
 
 `test-head` tests HEAD. `test-tree` tests the working tree: tracked
 files as they are on disk, and untracked files that are not ignored.
 `stop-jvm` stops the JVM they keep running; the next test run starts
 another. It reads only `:repo` and `:worktree`.
+`forget-green` deletes the green ref, so the next run tests everything,
+for when a run went green over a change it does not follow. It leaves any
+running JVM online, so a value read when a namespace was loaded stays as it
+was until `stop-jvm`. It reads only `:repo`.
 
 Keys, all but `:jvm-cmd` optional:
 

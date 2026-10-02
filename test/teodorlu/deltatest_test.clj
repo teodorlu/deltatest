@@ -59,7 +59,8 @@
                [#{toy.a-test toy.b-test toy.d-test} false]
                [#{toy.a-test toy.b-test toy.d-test} false]
                [#{toy.a-test toy.b-test toy.d-test} true]
-               [#{toy.blå-test} true]]
+               [#{toy.blå-test} true]
+               [#{toy.a-test toy.b-test toy.c-test toy.d-test toy.blå-test} true]]
              [(step nil nil)
               (step nil nil)
               (step "src/toy/a.clj" (toy/source "toy.a" "toy.b" "(+ 0 (toy.b/value))"))
@@ -68,7 +69,9 @@
               (step "src/toy/b.clj" (toy/source "toy.b" "toy.c" 2))
               (step "README" "unrelated")
               (step "src/toy/b.clj" (toy/source "toy.b" "toy.c" 1))
-              (step "test/toy/blå_test.clj" (toy/test-source "toy.blå-test" "toy.c" 1))]))
+              (step "test/toy/blå_test.clj" (toy/test-source "toy.blå-test" "toy.c" 1))
+              (do (deltatest/forget-green {:repo repo})
+                  (step nil nil))]))
       (is (str/includes? @out "in toy.b-test/value (b_test.clj:2)"))
       (finally
         (deltatest/stop-jvm {:worktree worktree})
