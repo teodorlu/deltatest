@@ -14,31 +14,30 @@ behaviour, as far as `ns` forms can tell.
 
 ## Requirements
 
-- Babashka 1.12.194 or later. deltatest runs there, and is written for
-  Clojure 1.12.
-- Clojure 1.11 or later in the project under test. The half that runs in its
-  JVM does not assume 1.12.
+The project under test needs:
+
+- Clojure 1.11 or later. The half that runs in its JVM does not assume 1.12.
+- Code that clj-reload can reload cleanly. Every run reloads what changed
+  with clj-reload, in a JVM that stays up between runs.
+
+deltatest itself runs on Clojure 1.12 or later, or on Babashka 1.12.194 or
+later.
 
 ## Usage
 
-There is no command line. Call one of four functions from a babashka task:
+deltatest is a library, meant to be called from babashka tasks. Add it to
+`bb.edn` and give each of its four functions a task:
 
 ```clojure
 ;; bb.edn
-{:deps {io.github.teodorlu/deltatest {:local/root "../deltatest"}}
+{:deps {io.github.teodorlu/deltatest {:git/sha "f99bffc43b2914f63994f6b28ec75ab5eccdc22d"}}
  :tasks
- {test-head
-  {:requires ([teodorlu.deltatest :as deltatest])
-   :task (deltatest/test-head {:jvm-cmd "clojure -Sdeps '{:deps {nrepl/nrepl {:mvn/version \"1.4.0\"}}}' -M:test -m nrepl.cmdline"})}
-  test-tree
-  {:requires ([teodorlu.deltatest :as deltatest])
-   :task (deltatest/test-tree {:jvm-cmd "clojure -Sdeps '{:deps {nrepl/nrepl {:mvn/version \"1.4.0\"}}}' -M:test -m nrepl.cmdline"})}
-  stop-jvm
-  {:requires ([teodorlu.deltatest :as deltatest])
-   :task (deltatest/stop-jvm {})}
-  forget-green
-  {:requires ([teodorlu.deltatest :as deltatest])
-   :task (deltatest/forget-green {})}}}
+ {:init (def deltatest-opts {:jvm-cmd "clojure -Sdeps '{:deps {nrepl/nrepl {:mvn/version \"1.4.0\"}}}' -M:test -m nrepl.cmdline"})
+  :requires ([teodorlu.deltatest :as deltatest])
+  deltatest-head (deltatest/test-head deltatest-opts)
+  deltatest-tree (deltatest/test-tree deltatest-opts)
+  deltatest-stop (deltatest/stop-jvm deltatest-opts)
+  deltatest-forget (deltatest/forget-green deltatest-opts)}}
 ```
 
 `test-head` tests HEAD. `test-tree` tests the working tree: tracked
@@ -55,9 +54,10 @@ Keys, all but `:jvm-cmd` optional:
 - `:jvm-cmd` starts an nREPL server in the worktree. It must put
   clj-reload, kaocha and the test paths on the classpath, and write
   `.nrepl-port`, which `nrepl.cmdline` does when no port is given.
-- `:worktree` is where the worktree lives. Default
-  `$XDG_STATE_HOME/deltatest/<repo>-<hash>/worktree`, with
-  `~/.local/state` when `XDG_STATE_HOME` is unset.
+- `:worktree` overrides the path of deltatest's git worktree. Default: one
+  per repository, under `$XDG_STATE_HOME/deltatest/`
+  (`~/.local/state/deltatest/` when `XDG_STATE_HOME` is unset). Every commit
+  and every git worktree of that repository shares it, and so shares its JVM.
 - `:repo` is the repository, default `.`.
 - `:test-paths` is a vector, default `["test"]`.
 
@@ -88,20 +88,39 @@ so they print as kaocha would, reporter included, while they run.
   (`src/teodorlu/deltatest/agent.clj`), so the project under test
   does not depend on this library. It runs tests with `kaocha.repl/run`.
 
-## Not handled
+## When deltatest misses a regression
 
-- Changes to anything but `.clj`/`.cljc` are listed as "Changed, not
-  followed", and select nothing.
-- Dependencies that are not in `ns` forms: `requiring-resolve`, multimethods
-  defined where the test does not require, data files.
-- Drift in the JVM beyond what clj-reload unloads.
-- Two runs at once against the same worktree.
-- A file that does not parse is red, but clj-reload 1.0.0 reports it as
-  `Cannot throw exception because "exception" is null`, not as the syntax error.
+deltatest assumes your code can be reloaded by clj-reload, and that static
+analysis of namespace `:require`s finds the tests a change affects. Where
+that does not hold, deltatest can succeed when a fresh test run would fail.
+
+This can happen when:
+
+- a file other than `.clj` or `.cljc` changes, such as `deps.edn`, a
+  resource or a `.cljs` file. It selects no tests, and a changed `deps.edn`
+  does not reach the warm JVM.
+- a test reaches changed code without requiring it, through
+  `requiring-resolve`, a multimethod defined in a namespace it does not
+  require, or a data file it reads.
+- state from earlier runs survives a reload and changes how code or tests
+  behave: `defonce` values, which clj-reload keeps, system properties,
+  running threads.
+- deltatest runs twice at once in one repository. Every call in one
+  repository, from any of its git worktrees, uses the same deltatest worktree
+  and JVM, so one call can move the worktree while the other is testing it.
+  Let one finish before starting the next.
+
+When you suspect one of the first three, run `forget-green` and `stop-jvm`.
+The next run tests everything in a fresh JVM, as a fresh test run would.
 
 ## Development
 
+Run the tests with
+
 ```
-bb test          # kaocha on the JVM; starts toy JVMs
-DELTATEST_TMP=../tmp bb test   # keep toy repositories somewhere of your choosing
+bb test
 ```
+
+They create scratch git repositories and start a JVM in some of them, which
+they stop when done. The repositories go in the system temp directory, or
+under `$DELTATEST_TMP` when it is set.
