@@ -14,10 +14,10 @@ No JVM restarts and no re-running tests that don't affect our work speeds up the
 ## Limitations
 
 **Deltatest needs static dependencies between namespaces.**
-Deltatest understands static requires like `(ns a (:require b))`, but not dynamic `require` or `requiring-resolve` calls.
+Deltatest understands static requires like `(ns a (:require b))`, but not dynamic `require`s or `requiring-resolve`s.
 
 **Deltatest needs your code to be reloadable by clj-reload**.
-If a [clj-reload] reload of your code fails, Deltatest won't work.
+If [clj-reload] can't reload your code, Deltatest won't work.
 
 ## Quickstart
 
@@ -48,14 +48,14 @@ If a [clj-reload] reload of your code fails, Deltatest won't work.
               deltatest/test-head)}}
 ```
 
-The `:test` alias must have [clj-reload] and [Kaocha] available.
-To use a different alias, change :jvm-cmd in deltatest-opts.
+The `:test` alias must have [clj-reload] and [Kaocha].
+To use a different alias, change `:jvm-cmd` in `deltatest-opts`.
 
 All commands take an option map.
 `:jvm-cmd` is required.
 It should start your Clojure process, with an [nREPL] server.
 [clj-reload] and [Kaocha] must be on its classpath.
-When the Clojure process is ready to take nREPL commands, an `.nrepl-port` file must exist.
+When the Clojure process is ready for nREPL commands, the nREPL port must be written to `.nrepl-port`.
 
 Optional keys:
 
@@ -72,11 +72,11 @@ Run the tests with
 bb test
 ```
 
-[clj-reload]: https://github.com/tonsky/clj-reload
-[Kaocha]: https://github.com/lambdaisland/kaocha
-[nREPL]: https://nrepl.org
-
 ## Designers
 
 - [Mathias Iversen](https://github.com/boosja)
 - [Teodor Heggelund](https://github.com/teodorlu)
+
+[clj-reload]: https://github.com/tonsky/clj-reload
+[Kaocha]: https://github.com/lambdaisland/kaocha
+[nREPL]: https://nrepl.org
