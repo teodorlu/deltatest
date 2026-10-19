@@ -20,6 +20,12 @@ So:
 No branch points at it; the green ref does once it passes.
 Your index, branches and files are left alone.
 
+## Each run forces the worktree to the tested commit
+
+Each run moves Deltatest's worktree with `git checkout -f`.
+Changes to tracked files are discarded.
+Untracked files stay, ignored ones included, until `clean`.
+
 ## The dependency graph is clj-reload's
 
 The graph is read from the JVM under test, after reloading.

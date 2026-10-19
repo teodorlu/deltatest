@@ -35,13 +35,15 @@ If a [clj-reload] reload of your code fails, Deltatest won't work.
   deltatest-tree (deltatest/test-tree deltatest-opts)
 
   ;; ── Peripheral commands ────
-  ;; Stop Deltatest's JVM process, eg to load new deps.edn on next test
+  ;; Stop Deltatest's JVM process, eg to load new deps.edn on next test.
   deltatest-stop (deltatest/stop-jvm deltatest-opts)
-  ;; Forget Deltatest's last known green commit, all tests will run next time
+  ;; Forget Deltatest's last known green commit, all tests will run next time.
   deltatest-forget (deltatest/forget-green deltatest-opts)
+  ;; Stop Deltatest's JVM and remove all leftover worktree files.
+  deltatest-clean (deltatest/clean deltatest-opts)
   ;; Do a completely clean run of the latest commit. Similar to CI servers, no shortcuts.
   test-head (doto deltatest-opts
-              deltatest/stop-jvm
+              deltatest/clean
               deltatest/forget-green
               deltatest/test-head)}}
 ```

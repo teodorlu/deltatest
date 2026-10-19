@@ -18,6 +18,13 @@ the test does not require, or a data file the test reads.
 Examples: `defonce` values, which clj-reload keeps, system properties and
 running threads.
 
+## Files written by earlier runs survive
+
+Each run discards changes to tracked files in Deltatest's worktree, but keeps
+untracked files, ignored ones included.
+A test can read a file an earlier run wrote, where a fresh test run would not
+find one.
+
 ## Two runs overlap in one repository
 
 Every run in one repository, from any of its git worktrees, uses the same
@@ -25,7 +32,8 @@ Deltatest worktree and JVM.
 One run can move the worktree while the other is testing it.
 Let one finish before starting the next.
 
-## `forget-green` and `stop-jvm` give a fresh test run
+## `clean` and `forget-green` give a fresh test run
 
-For the first three cases, run `forget-green` and `stop-jvm`.
-The next run tests everything in a fresh JVM, as a fresh test run would.
+For the first four cases, run `clean` and `forget-green`.
+The next run tests everything in a fresh JVM and a clean worktree, as a fresh
+test run would.

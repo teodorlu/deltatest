@@ -114,12 +114,13 @@
         key (str (fs/file-name (fs/parent common)) "-" (short-hash common))]
     (str (fs/path state "deltatest" key "worktree"))))
 
-(defn- ensure-worktree [repo worktree sha]
-  (if (fs/exists? worktree)
-    (when-not (str/blank? (git worktree "status" "--porcelain"))
-      (throw (ex-info (str "Worktree has changes, refusing to move it: " worktree) {})))
+(defn- ensure-worktree
+  "Move the worktree to `sha`, creating it if there is none. Changes to tracked
+  files are discarded; untracked files stay until `clean`."
+  [repo worktree sha]
+  (when-not (fs/exists? worktree)
     (git repo "worktree" "add" "--detach" (str worktree) sha))
-  (git worktree "checkout" "-q" "--detach" sha))
+  (git worktree "checkout" "-q" "-f" "--detach" sha))
 
 ;; nREPL
 
@@ -179,6 +180,18 @@
       (let [hs (cons h (iterator-seq (Stream/.iterator (ProcessHandle/.descendants h))))]
         (run! ProcessHandle/.destroyForcibly hs)
         (run! #(CompletableFuture/.join (ProcessHandle/.onExit %)) hs)))))
+
+(defn clean
+  "Stop the JVM, then delete every untracked file in the worktree, ignored
+  files and nested git repositories included. Called from a babashka task,
+  with `opts` as for `run-changes`."
+  [{:keys [repo worktree] :or {repo "."}}]
+  (let [worktree (or worktree (default-worktree repo))]
+    (if (fs/exists? worktree)
+      (do (stop-jvm {:worktree worktree})
+          (git worktree "clean" "-q" "-ffdx")
+          (println "Cleaned the worktree."))
+      (println "No worktree."))))
 
 (defn- start-jvm
   "Starts `jvm-cmd` in `worktree` as a background job of `sh` with job control

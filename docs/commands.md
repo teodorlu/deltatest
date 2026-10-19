@@ -1,8 +1,8 @@
 # Commands
 
 Deltatest is a library.
-Its four functions, `test-head`, `test-tree`, `stop-jvm` and `forget-green`,
-are meant to be called from Babashka tasks.
+Its five functions, `test-head`, `test-tree`, `stop-jvm`, `forget-green` and
+`clean`, are meant to be called from Babashka tasks.
 
 ## A test run fails unless every selected test passed
 
@@ -26,6 +26,14 @@ See [missed regressions](missed-regressions.md).
 `forget-green` leaves a running JVM running.
 A value read when a namespace was loaded stays as it was until `stop-jvm`.
 `forget-green` reads only `:repo`.
+
+## `clean` removes every file earlier runs left in the worktree
+
+`clean` stops the JVM if it is running.
+Then it removes every untracked file in Deltatest's worktree, ignored files and
+nested git repositories included.
+The next test run starts another JVM.
+`clean` reads only `:repo` and `:worktree`.
 
 ## Test output is Kaocha's
 

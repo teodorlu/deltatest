@@ -1,10 +1,13 @@
 (ns teodorlu.deltatest-test
   (:require [babashka.fs :as fs]
             [babashka.process :as p]
+            [clojure.edn :as edn]
             [clojure.string :as str]
             [clojure.test :refer [deftest is]]
             [teodorlu.deltatest :as deltatest]
-            [teodorlu.deltatest.toy :as toy]))
+            [teodorlu.deltatest.toy :as toy])
+  (:import [java.lang ProcessHandle]
+           [java.util Optional]))
 
 (defn- tmp-dir []
   (str (if-let [base (System/getenv "DELTATEST_TMP")]
@@ -92,6 +95,54 @@
              [(selected (#'deltatest/working-tree-commit repo))
               (:out (p/shell {:dir repo :out :string} "git" "status" "--porcelain"))
               (do (toy/commit! repo "d") (selected "HEAD"))]))
+      (finally
+        (deltatest/stop-jvm {:worktree worktree})
+        (fs/delete-tree dir)))))
+
+(deftest dirty-worktree
+  (let [dir (tmp-dir)
+        repo (toy/create! (str (fs/path dir "toy")))
+        worktree (str (fs/path dir "toy-latest"))
+        green? (fn []
+                 (:green? (deltatest/run-changes {:repo repo :worktree worktree
+                                                  :jvm-cmd toy/jvm-cmd :emit (fn [_ _])})))]
+    (try
+      (green?)
+      (toy/write! worktree "src/toy/c.clj" "(ns toy.c) (defn value [] 2)\n")
+      (toy/write! worktree "left-behind.txt" "from an earlier run")
+      (toy/write! repo "README" "unrelated")
+      (toy/commit! repo "README")
+      (is (= [true (toy/source "toy.c" nil 1) true]
+             [(green?)
+              (slurp (fs/file worktree "src/toy/c.clj"))
+              (fs/exists? (fs/file worktree "left-behind.txt"))]))
+      (finally
+        (deltatest/stop-jvm {:worktree worktree})
+        (fs/delete-tree dir)))))
+
+(deftest clean
+  (let [dir (tmp-dir)
+        repo (toy/create! (str (fs/path dir "toy")))
+        worktree (str (fs/path dir "toy-latest"))
+        out (atom "")
+        run (fn []
+              (deltatest/run-changes {:repo repo :worktree worktree :jvm-cmd toy/jvm-cmd
+                                      :emit (fn [_ text] (swap! out str text))}))
+        left-behind ["untracked.txt" ".nrepl-port" "nested/.git"]]
+    (try
+      (run)
+      (toy/write! worktree "untracked.txt" "from an earlier run")
+      (p/shell {:dir worktree :out :string :err :string} "git" "init" "-q" "nested")
+      (let [[pid] (edn/read-string (slurp (#'deltatest/jvm-file worktree "edn")))
+            alive? #(boolean (some-> (ProcessHandle/of pid) (Optional/.orElse nil) ProcessHandle/.isAlive))]
+        (is (= [[true true true] true]
+               [(mapv #(fs/exists? (fs/file worktree %)) left-behind) (alive?)]))
+        (deltatest/clean {:worktree worktree})
+        (is (= [[false false false] false]
+               [(mapv #(fs/exists? (fs/file worktree %)) left-behind) (alive?)])))
+      (reset! out "")
+      (is (:green? (run)))
+      (is (str/includes? @out "Starting JVM"))
       (finally
         (deltatest/stop-jvm {:worktree worktree})
         (fs/delete-tree dir)))))
