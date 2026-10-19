@@ -23,7 +23,7 @@ If a [clj-reload] reload of your code fails, Deltatest won't work.
 
 ```clojure
 ;; In your bb.edn, add
-{:deps {io.github.teodorlu/deltatest {:git/sha "f99bffc43b2914f63994f6b28ec75ab5eccdc22d"}}
+{:deps {io.github.teodorlu/deltatest {:git/sha "e8e37323181ab67d085534ad09b5f5c65ba11ee9"}}
  :tasks
  {:init (def deltatest-opts {:jvm-cmd "clojure -Sdeps '{:deps {nrepl/nrepl {:mvn/version \"1.4.0\"}}}' -M:test -m nrepl.cmdline"})
   :requires ([teodorlu.deltatest :as deltatest])
