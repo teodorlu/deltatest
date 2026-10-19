@@ -54,10 +54,6 @@ When the Clojure process is ready to take nREPL commands, an `.nrepl-port` file 
 
 Optional keys:
 
-- `:worktree` overrides the path of deltatest's git worktree. Default: one
-  per repository, under `$XDG_STATE_HOME/deltatest/`
-  (`~/.local/state/deltatest/` when `XDG_STATE_HOME` is unset). Every commit
-  and every git worktree of that repository shares it, and so shares its JVM.
 - `:repo` is the repository path, default `.`.
 - `:test-paths` is where tests are stored, default `["test"]`.
 
