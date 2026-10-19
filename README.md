@@ -74,3 +74,8 @@ bb test
 [clj-reload]: https://github.com/tonsky/clj-reload
 [Kaocha]: https://github.com/lambdaisland/kaocha
 [nREPL]: https://nrepl.org
+
+## Designers
+
+- [Mathias Iversen](https://github.com/boosja)
+- [Teodor Heggelund](https://github.com/teodorlu)
