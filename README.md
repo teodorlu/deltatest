@@ -48,6 +48,9 @@ If a [clj-reload] reload of your code fails, Deltatest won't work.
               deltatest/test-head)}}
 ```
 
+The `:test` alias must have [clj-reload] and [Kaocha] available.
+To use a different alias, change :jvm-cmd in deltatest-opts.
+
 All commands take an option map.
 `:jvm-cmd` is required.
 It should start your Clojure process, with an [nREPL] server.
