@@ -41,9 +41,9 @@ If a [clj-reload] reload of your code fails, Deltatest won't work.
   deltatest-forget (deltatest/forget-green deltatest-opts)
   ;; Do a completely clean run of the latest commit. Similar to CI servers, no shortcuts.
   test-head (doto deltatest-opts
-	           deltatest/stop-jvm
-			   deltatest/forget-green
-			   deltatest/test-head)}}
+              deltatest/stop-jvm
+              deltatest/forget-green
+              deltatest/test-head)}}
 ```
 
 All commands take an option map.
